@@ -17,6 +17,7 @@ calculatedStB=0
 dglab_instance=pydglab.dglab_v3()
 data={}
 dataGot=False
+gameMode=0#0=tank 1=air
 
 #连接主机
 async def connect():
@@ -41,13 +42,15 @@ async def connect():
 #抓取数据
 async def getData():
     global data,dataGot
-    indicators_url = "http://localhost:8111/indicators"
     dataGot=True
     #获取数据
     try:
-        response=requests.get(indicators_url)
+        response=requests.get(cfg.indicators_url)
         response.raise_for_status()
         data=response.json()
+        #如果是海军
+        if data.get("valid")==False:
+            dataGot=False
     #获取失败
     except requests.exceptions.RequestException as e:
         print(f"获取数据失败 :{e}")
@@ -61,11 +64,24 @@ async def getData():
 #强度计算
 async def setStrength():
     #计算
-    global data,currentStA,currentStB,calculatedStA,calculatedStB
-    calculatedStA=data.get("crew_total")*4
-    calculatedStA=round(calculatedStA)
-    #if calculatedStA<15:
-        #calculatedStA+=5
+    global data,currentStA,currentStB,calculatedStA,calculatedStB,gameMode
+
+    #陆战计算
+    if dataGot and data.get("army")=="tank":
+        if gameMode==1:
+            gameMode=0
+        calculatedStA=data.get("crew_total")*4
+        #最后记得取整
+        calculatedStA=round(calculatedStA)
+    #空战计算
+    elif dataGot and data.get("army")=="air":
+        if gameMode==0:
+            gameMode=1
+            calculatedStA=cfg.defalutStrength
+        if calculatedStA<15:
+            calculatedStA+=2
+    else:
+        calculatedStA=cfg.defalutStrength
     
 #主逻辑
 async def main():
@@ -90,7 +106,10 @@ async def main():
         if(calculatedStA!=currentStA or calculatedStB!=currentStB):
             print(f"强度修改为：{calculatedStA},{calculatedStB}")
             await dglab_instance.set_strength_sync(calculatedStA, calculatedStB)
-        await asyncio.sleep(cfg.interval)
+            await asyncio.sleep(cfg.interval)
+        else:
+            await dglab_instance.set_strength_sync(currentStA, currentStB)
+            await asyncio.sleep(cfg.interval)
     return
 
 if __name__ == "__main__":
