@@ -62,7 +62,7 @@ async def getData():
         return 
     
 #强度计算
-async def setStrength():
+async def calulateStrength():
     #计算
     global data,currentStA,currentStB,calculatedStA,calculatedStB,gameMode
 
@@ -75,11 +75,11 @@ async def setStrength():
         calculatedStA=round(calculatedStA)
     #空战计算
     elif dataGot and data.get("army")=="air":
+        if calculatedStA<15:
+            calculatedStA+=2
         if gameMode==0:
             gameMode=1
             calculatedStA=cfg.defalutStrength
-        if calculatedStA<15:
-            calculatedStA+=2
     else:
         calculatedStA=cfg.defalutStrength
     
@@ -89,27 +89,26 @@ async def main():
     if not await connect():
         return  # 连接失败，退出函数
     #设置波形
-    await dglab_instance.set_wave_sync(0, 0, 0, 0, 0, 0)
-    await dglab_instance.set_wave_set(
-        model_v3.Wave_set["Going_Faster"], model_v3.ChannelA
-    )
+    await dglab_instance.set_wave_sync(10, 2, 2, 10, 2, 2)
     #连接成功，通电提醒
-    await dglab_instance.set_strength_sync(cfg.wakeSignalStrength, cfg.wakeSignalStrength)
+    await dglab_instance.set_strength_sync(cfg.wakeSignalStrength*cfg.globalKA, cfg.wakeSignalStrength*cfg.globalKB)
     await asyncio.sleep(1)
-    await dglab_instance.set_strength_sync(cfg.defalutStrength,cfg.defalutStrength)
+    await dglab_instance.set_strength_sync(cfg.defalutStrength*cfg.globalKA,cfg.defalutStrength*cfg.globalKB)
     #循环逻辑
     while True:
-        await getData()
-        await setStrength()
         #应用强度
+        global calculatedStA,calculatedStB
         currentStA,currentStB=await dglab_instance.get_strength()
-        if(calculatedStA!=currentStA or calculatedStB!=currentStB):
-            print(f"强度修改为：{calculatedStA},{calculatedStB}")
-            await dglab_instance.set_strength_sync(calculatedStA, calculatedStB)
+        if(calculatedStA*cfg.globalKA!=currentStA or calculatedStB*cfg.globalKB!=currentStB):
+            print(f"强度修改为：{calculatedStA*cfg.globalKA},{calculatedStB*cfg.globalKB}")
+            await dglab_instance.set_strength_sync(calculatedStA*cfg.globalKA, calculatedStB*cfg.globalKB)
             await asyncio.sleep(cfg.interval)
         else:
-            await dglab_instance.set_strength_sync(currentStA, currentStB)
+            #await dglab_instance.set_strength_sync(currentStA, currentStB)
             await asyncio.sleep(cfg.interval)
+        await getData()
+        await calulateStrength()
+        #calculatedStA,calculatedStB=15,15
     return
 
 if __name__ == "__main__":
